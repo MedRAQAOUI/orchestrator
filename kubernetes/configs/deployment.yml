@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "${app_product}-${app_label}-${profile}"
+  namespace: "${namespace}"
+  labels:
+    app : "${app_product}-${app_label}-${profile}"
+    product : "${app_product}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${app_product}-${app_label}-${profile}
+      product : "${app_product}"
+  template:
+    metadata:
+      labels:
+        app: ${app_product}-${app_label}-${profile}
+        product : "${app_product}"
+    spec:
+      containers:
+      - name: "${app_product}-${app_label}-${profile}"
+        imagePullPolicy: Always
+        image: ${imagedocker}
+        ports:
+        - name: web
+          containerPort: 8080
+          protocol: TCP
+        - name: hazelcast
+          containerPort: 5701
+          protocol: TCP
+        resources:
+          limits:
+            cpu: "${cpu_limit}"
+            memory: "${mem_limit}"
+          requests:
+            cpu: "${cpu_request}"
+            memory: "${mem_request}"
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /orchestrator/actuator/health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 120
+          periodSeconds: 20
+          successThreshold: 1
+          timeoutSeconds: 90
+        readinessProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /orchestrator/actuator/health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 120
+          periodSeconds: 20
+          successThreshold: 1
+          timeoutSeconds: 90
+        env:
+        - name: ACTIVE_PROFILE
+          value: "${profile}"
+        - name: "KUBERNETES_NAMESPACE"
+          valueFrom:
+            fieldRef:
+               fieldPath: "metadata.namespace"
+        - name: DATASOURCE_URL
+          valueFrom:
+            secretKeyRef:
+              name: teradata-dba
+              key: appliance
+        - name: DATASOURCE_DBA_USR
+          valueFrom:
+            secretKeyRef:
+              name: teradata-dba
+              key: username
+        - name: DATASOURCE_DBA_PWD
+          valueFrom:
+            secretKeyRef:
+              name: teradata-dba
+              key: password
+        - name: DATASOURCE_IHM_USR
+          valueFrom:
+            secretKeyRef:
+              name: teradata-pdml-ihm
+              key: username
+        - name: DATASOURCE_IHM_PWD
+          valueFrom:
+            secretKeyRef:
+              name: teradata-pdml-ihm
+              key: password
+        - name: BDD_SID_PDY
+          valueFrom:
+            secretKeyRef:
+              name: teradata-pdml-ihm
+              key: sid_pdy
+        - name: BDD_SID_STM
+          valueFrom:
+            secretKeyRef:
+              name: teradata-pdml-ihm
+              key: sid_stm
+        - name: LEVEL_LOG
+          value: "${level_log}"
+      imagePullSecrets:
+      - name: ${imagepuller}
+      serviceAccountName: orchestratorsaccnt

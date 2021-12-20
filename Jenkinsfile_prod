@@ -1,0 +1,136 @@
+#!/usr/bin/env groovy
+// Outils pipeline STM
+@Library('pipeline-library-stm') _
+
+properties([
+    parameters([
+        [
+            $class: 'CascadeChoiceParameter', 
+            choiceType: 'PT_SINGLE_SELECT', 
+            description: '<div><strong>Choose the specific "release" version  to deploy</strong><br/><br/></div>', 
+            name: 'VERSION', 
+            script: [
+                $class: 'GroovyScript', 
+                fallbackScript: [script: 'return ["ERROR"]'], 
+                script: [script: '''
+                    def gitReleases =  ("git ls-remote --tags https://stm-developper:5tm-2ev-309@gitlab.adaje.oi.fr/ti-stm/microservices/bee/pml/pml-orchestrator.git").execute();
+                    return ["-- Choose version --"].plus(gitReleases.text.readLines().collect { it.split('refs/tags/')[1].replace('^{}', '')});
+                ''']
+            ]
+        ], 
+        [
+            $class: 'CascadeChoiceParameter', 
+            choiceType: 'PT_SINGLE_SELECT', 
+            description: '<div><strong>Choose environnement to deploy the build branch or the specific version</strong><br/><br/><br/><br/><br/></div>', 
+            name: 'ENV_DEPLOY', 
+            script: [
+                $class: 'GroovyScript', 
+                fallbackScript: [script: 'return ["ERROR"]'], 
+                script: [script: 'return ["-- Choose env --", "pprd", "prd", "pra"]']
+            ]
+        ]
+    ])
+])
+
+pipeline {
+  agent {
+      label {
+        label ''
+        customWorkspace("workspace/${env.JOB_NAME}")
+      }
+    }
+	options {
+        buildDiscarder(logRotator(numToKeepStr: '5', artifactNumToKeepStr: '2'))
+		ansiColor('xterm')
+        timestamps()
+		timeout(time: 1, unit: 'HOURS')
+    }
+    tools {
+        jdk 'jdk8'
+        maven 'M3.5.4'
+    }
+    environment {
+        pom = readMavenPom file:"pom.xml"
+        artifactId = "${pom.artifactId}"        
+    }
+	stages {       
+        stage("Init") {
+            steps {
+            	jobDisplayName("${env.BUILD_NUMBER} | ${params.VERSION} | ${params.ENV_DEPLOY}", "<h3>Build du microservice ${env.artifactId}</h3>")
+                gitClean()
+                script {
+                    //RECUPERATION DU TOKEN OPENSHIFT VIA VAULT
+                    env_secret = params.ENV_DEPLOY.toString() == 'prd'? 'PROD' : params.ENV_DEPLOY.toString().toUpperCase()
+                    env.OPENSHIFT_TOKEN = stmOpenshift.findToken( "/secret/sdt/ms/PDY/${env_secret}/openshift" )
+                }
+            }
+        }
+		stage("Deploy") {
+            when {
+                expression { env.OPENSHIFT_TOKEN != '' }
+            }
+            steps {
+                script {
+                	// Recuperation des proprietes
+                    props = stmOpenshift.getProperties("${params.ENV_DEPLOY}", 'deployments/conf/properties')
+  					//Ajout de env, branch et artifact id au tableau de props 
+  					props['deploy.env'] = "${params.ENV_DEPLOY}"
+  					props['deploy.image'] = "${params.ENV_DEPLOY}"
+  					props['artifact.id'] = "${env.artifactId}"
+  					props['profile'] = "${params.ENV_DEPLOY}"
+  					props['version'] = "${params.VERSION}"
+
+                    if (params.ENV_DEPLOY == 'pprd') {
+                        props['imagedocker'] = "artifactory-principale.fr:9804/pdy/${params.ENV_DEPLOY}/${env.artifactId}:${versionApp}"
+                    } else {
+                        props['imagedocker'] = "artifactory-principale.fr:9805/pdy/${env.artifactId}:${versionApp}"
+                    }
+                  	  
+                    echo "Props vaut : \n${props}"
+                    env.HTTP_DEBUG = "true"
+                    // Mise à jour des resource et deployement des nouveaux pods 
+                    [ 
+                      [ 'rscType': 'DeploymentConfig', 	'descFile': 'deployments/conf/deployment_config.yml'], 
+                      [ 'rscType': 'Service', 			'descFile': 'deployments/conf/service.yml' 			], 
+                      [ 'rscType': 'Route', 			'descFile': 'deployments/conf/route.yml' 			]
+                    ].each { item ->
+                          echo "--- Creation/Update de la ressource ${env.artifactId} (${item.rscType})" 
+                          def dataYaml = readFile(file: item.descFile).replaceAll(/\$\{([\w\.\-]+)\}/) { m -> props[ m[1] ] }
+                          echo "dataYaml vaut: \n${dataYaml}"
+                          
+                          resourceURL = stmOpenshift.makeResourceURL(props['namespace'], item.rscType, "${env.artifactId}", props['openshift_url'])
+                          echo "resourceURL vaut \n${resourceURL}"
+                          stmOpenshift.createOrReplaceResource(resourceURL, dataYaml)
+                          echo "la resource est crée"
+                    }
+
+                    // Rollout 
+                    resourceURL = stmOpenshift.makeResourceURL(props['namespace'], 'DeploymentConfig', "${env.artifactId}", props['openshift_url'])
+                    stmOpenshift.rollout(resourceURL)
+                
+                    // On attend que les resource soit prete.
+                    echo "--- On attend que l'application soit démarrée" 
+                    timeout(time: 1240, unit: 'SECONDS') {
+                        stmOpenshift.waitDeploymentConfig(resourceURL, 120) 
+                    }
+                }
+            }
+        }
+		stage("Promote image") {
+            when {
+                expression { env.OPENSHIFT_TOKEN != '' }
+            }
+            steps {
+              script {
+                //créer le tag de l'image une fois que toutes les étapes précédentes se sont déroulées sans erreur
+                sh returnStdout: true, script: "docker tag artifactory-principale.fr:9805/pdy/${env.artifactId}:${params.VERSION} artifactory-principale.fr:9805/pdy/${env.artifactId}:${params.VERSION}"
+                } 
+            }
+        }
+    }
+	post {
+		always {
+			deleteDir()
+		}
+	}
+}

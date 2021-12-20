@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${app_product}-${app_label}-${profile}
+  labels: 
+     app: "${app_product}-${app_label}-${profile}"
+  namespace: ${namespace}
+  selfLink: /api/v1/namespaces/${namespace}/services/${app_product}-${app_label}-${profile}
+spec:
+  ports:
+  - name: web
+    protocol: TCP
+    port: 8080
+    targetPort: 8080
+  - name: hazelcast
+    protocol: TCP
+    port: 5701
+    targetPort: 5701
+  selector:
+     app: ${app_product}-${app_label}-${profile}
+  sessionAffinity: None
+  type: ClusterIP

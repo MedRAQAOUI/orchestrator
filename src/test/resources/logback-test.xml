@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration debug="true">
+	<!-- Properties -->
+	<property scope="local" name="logDir" value="target/log" />
+
+	<if
+		condition="property(&quot;SPRING_PROFILES_ACTIVE&quot;).contains(&quot;dev&quot;)">
+		<then>
+			<turboFilter
+				class="fr.ilogyou.logback.config.InstallerFilter">
+				<fileURL>ilogyou-dev.properties</fileURL>
+			</turboFilter>
+		</then>
+	</if>
+	<if
+		condition="property(&quot;SPRING_PROFILES_ACTIVE&quot;).contains(&quot;rec&quot;)">
+		<then>
+			<turboFilter
+				class="fr.ilogyou.logback.config.InstallerFilter">
+				<fileURL>ilogyou-rec.properties</fileURL>
+			</turboFilter>
+		</then>
+	</if>
+	<if
+		condition="property(&quot;SPRING_PROFILES_ACTIVE&quot;).contains(&quot;qlf&quot;)">
+		<then>
+			<turboFilter
+				class="fr.ilogyou.logback.config.InstallerFilter">
+				<fileURL>ilogyou-qlf.properties</fileURL>
+			</turboFilter>
+		</then>
+	</if>
+	<if
+		condition="property(&quot;SPRING_PROFILES_ACTIVE&quot;).contains(&quot;ppd&quot;)">
+		<then>
+			<turboFilter
+				class="fr.ilogyou.logback.config.InstallerFilter">
+				<fileURL>ilogyou-ppd.properties</fileURL>
+			</turboFilter>
+		</then>
+	</if>
+	<if
+		condition="property(&quot;SPRING_PROFILES_ACTIVE&quot;).contains(&quot;prd&quot;)">
+		<then>
+			<turboFilter
+				class="fr.ilogyou.logback.config.InstallerFilter">
+				<fileURL>ilogyou-prd.properties</fileURL>
+			</turboFilter>
+		</then>
+	</if>
+	<if
+		condition="property(&quot;SPRING_PROFILES_ACTIVE&quot;).contains(&quot;pra&quot;)">
+		<then>
+			<turboFilter
+				class="fr.ilogyou.logback.config.InstallerFilter">
+				<fileURL>ilogyou-pra.properties</fileURL>
+			</turboFilter>
+		</then>
+	</if>
+<!-- 
+	<appender name="console"
+		class="ch.qos.logback.core.ConsoleAppender">
+		<encoder>
+			<pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n
+			</pattern>
+		</encoder>
+	</appender>-->
+	
+	<appender name="ROLLIN" class="ch.qos.logback.core.rolling.RollingFileAppender">
+	    <file>logFile.log</file>
+	    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+	      <!-- daily rollover -->
+	      <fileNamePattern>logFile.%d{yyyy-MM-dd}.log</fileNamePattern>
+	
+	      <!-- keep 30 days' worth of history capped at 3GB total size -->
+	      <maxHistory>30</maxHistory>
+	      <totalSizeCap>3GB</totalSizeCap>
+	
+	    </rollingPolicy>
+	
+	    <encoder>
+	      <pattern>%-4relative [%thread] %-5level %logger{35} - %msg%n</pattern>
+	    </encoder>
+	  </appender>
+	  
+	<root level="INFO">
+		<appender-ref ref="console" />
+	</root>
+	<logger name="org.apache.kafka" level="WARN" />
+	<logger name="fr.donnees.pdy.utils" level="INFO"
+		additivity="false" />
+</configuration>

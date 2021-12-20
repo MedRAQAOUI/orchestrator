@@ -1,0 +1,114 @@
+#!/usr/bin/env groovy
+// Outils pipeline STM
+@Library('pipeline-library-stm') _
+
+pipeline {
+
+    agent {
+        label {
+            label ''
+            customWorkspace("workspace/${env.JOB_NAME}")
+        }
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '15', artifactNumToKeepStr: '5'))
+        ansiColor("xterm")
+        timestamps()
+        timeout(time: 10, unit: "MINUTES")
+    }
+
+    parameters {
+        choice(
+            name: 'SERVICE', 
+            choices: ["-- choix produit --","orchestrator","enginer-model-lmm"], 
+            description: '<div><strong>Micro service à déployer</strong><br/><br/></div>')
+        string(
+            name: 'GIT_BRANCH', 
+            defaultValue: '', 
+            description: '<div><strong>Branche git à builder</strong><br/><br/></div>')
+    }
+    
+    tools {
+        jdk 'jdk8'
+        maven 'M3.5.4'
+    }
+
+    environment {
+        pomVersion = "DEFAULT"
+        artifactId = "DEFAULT"
+    }
+
+	stages {
+        stage("Init") {
+            when {
+                allOf {
+                    expression { return (!params.SERVICE.contains("--") && params.GIT_BRANCH != '') }
+                }
+            }
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: "refs/remotes/origin/${params.GIT_BRANCH}"]],
+                    extensions: scm.extensions + [[$class: 'LocalBranch'], [$class: 'WipeWorkspace']],
+                    userRemoteConfigs: [[credentialsId: 'Y80_SSH_KEY', url: "git@gitlab.adaje.oi.fr:ti-stm/microservices/bee/stm-pml/${params.SERVICE}.git"]],
+                    doGenerateSubmoduleConfigurations: false
+                ])
+
+                script {
+                    // Obtenir la version du pom.xml ainsi que l'artifact id
+                    pomVersion = readMavenPom().getVersion()
+                    artifactId = readMavenPom().getArtifactId()
+                }
+
+                jobDisplayName("${env.BUILD_NUMBER} | ${params.SERVICE} | ${params.GIT_BRANCH} | ${pomVersion}", "<h3>Creation d'une release pour le microservice ${artifactId}</h3>")
+                gitClean()
+            }
+        }
+		stage("Build & Release creation") {
+            when {
+                allOf {
+                    expression { return (!params.SERVICE.contains("--") && params.GIT_BRANCH != '') }
+                }
+            }
+            environment {
+         		MVN_SETTINGS='y80-maven-settings'
+    		}
+            steps {
+                echo "Déploiement sur Artifactory  ${pomVersion}"
+                // Git avec clef SSH
+                sshagent(['Y80_SSH_KEY']) {
+                    script {
+                        // Build java
+                        mvn "deploy -DskipTests=true -DskipITs versions:set -DnewVersion=${pomVersion} -DprocessAllModules"
+                        //archiveArtifacts artifacts: '**/target/*.jar , **/target/*.tar.gz', fingerprint: true
+                        
+                        env.DOCKER_IMG = "artifactory-principale.fr:9994/pml/${artifactId}:${pomVersion}"
+                        def dockerBuildArgs = "--no-cache --build-arg POM_VERSION=${pomVersion} --build-arg ARTIFACT_ID=${artifactId} ."
+                        
+                        // registry de RELEASE
+                        docker.withRegistry( 'http://artifactory-principale.fr:9994', 'Y80_ARTIFACTORY_RW' ) {
+                            docker.build(env.DOCKER_IMG, dockerBuildArgs ).push()
+                        }
+                        sh returnStdout: true, script: "docker rmi $env.DOCKER_IMG"
+
+                        // Cleanning before use ssh
+                        gitClean()
+                        sh """
+                        git config user.name 'y80_tech' && git config user.email 'y80_tech@nomail.moc';
+                        git tag -f '${pomVersion}' -m 'Release creation version ${pomVersion}'  && git push origin --tags;
+                        """
+                    }
+                }
+                //TODO
+                //echo 'Nouvelle version SNAPSHOT est : ${params.NEXT_VERSION}'
+                //mvn "--batch-mode release:update-versions -DdevelopmentVersion=${params.NEXT_VERSION}"
+            }
+        }
+    }
+	post {
+		always {
+			deleteDir()
+		}
+	}
+}

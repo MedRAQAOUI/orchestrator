@@ -1,0 +1,12 @@
+spring:
+  profiles: dev
+  cloud:
+    config:
+      enabled: false
+
+logging:
+  level:
+    com:
+      zaxxer:
+        hikari: ERROR
+

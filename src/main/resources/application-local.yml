@@ -1,0 +1,55 @@
+logging:
+  level:
+    com:
+      zaxxer: 
+        hikari: TRACE
+
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  datasource:
+    platform: teradata
+    driverClassName: com.teradata.jdbc.TeraDriver
+    jdbcUrl: jdbc:teradata://TDTPP/TMODE=TERA
+    username: PDY_PDML_DBA_QLF
+    password: PDY_PDML_DBA_QLF
+    hikari:
+      maximum-pool-size: 20
+      max-lifetime: 60000
+  datasource-flyway:
+    platform: teradata
+    driverClassName: com.teradata.jdbc.TeraDriver
+    jdbcUrl: jdbc:teradata://TDTPP/TMODE=TERA
+    username: PDY_DBA_QLF
+    password: PDY_DBA_QLF
+    hikari:
+      maximum-pool-size: 20
+      max-lifetime: 60000
+  flyway:
+    enabled: false
+    validate-on-migrate: false
+    #locations: classpath:db/incremental/migration,classpath:db/repeatable/migration
+    placeholders:
+      sidpdml: QLF
+      sidstm: SHP    
+      service_name: PDML
+      service_space: 4900000
+      service_space_trvl: 2000000
+      service_space_ihm: 500000
+      service_space_soc: 250000
+      user_spool: 5368709119996
+    mixed: true
+  cloud:
+    config:
+      enabled: false
+  jpa:
+    properties:
+      hibernate.dialect: org.hibernate.dialect.TeradataDialect
+      hibernate.temp.use_jdbc_metadata_defaults: false
+
+
+
+
+
+
+

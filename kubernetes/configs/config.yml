@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${app_label}-${app_product}-${app_env}
+  namespace: ${namespace}
+data:
+  CONFIG: "Test config"

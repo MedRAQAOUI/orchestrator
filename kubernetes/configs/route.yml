@@ -1,0 +1,16 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ${app_product}-${app_label}-${profile}
+  namespace: ${namespace}
+spec:
+  entryPoints:
+    - websecure
+  routes:
+  - match: Host(`${host_service}`) && PathPrefix(`/orchestrator`)
+    kind: Rule
+    services:
+    - name: ${app_product}-${app_label}-${profile}
+      port: 8080
+  tls:
+    certResolver: default
