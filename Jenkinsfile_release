@@ -51,7 +51,7 @@ pipeline {
                     $class: 'GitSCM',
                     branches: [[name: "refs/remotes/origin/${params.GIT_BRANCH}"]],
                     extensions: scm.extensions + [[$class: 'LocalBranch'], [$class: 'WipeWorkspace']],
-                    userRemoteConfigs: [[credentialsId: 'Y80_SSH_KEY', url: "git@gitlab.adaje.oi.fr:ti-stm/microservices/bee/stm-pml/${params.SERVICE}.git"]],
+                    userRemoteConfigs: [[credentialsId: 'Y80_SSH_KEY', url: "gitlab.adaje.oi.fr:ti-stm/microservices/bee/stm-pml/${params.SERVICE}.git"]],
                     doGenerateSubmoduleConfigurations: false
                 ])
 
@@ -95,7 +95,7 @@ pipeline {
                         // Cleanning before use ssh
                         gitClean()
                         sh """
-                        git config user.name 'y80_tech' && git config user.email 'y80_tech@nomail.moc';
+                        git config user.name 'y80_tech' && git config user.email 'sdsd';
                         git tag -f '${pomVersion}' -m 'Release creation version ${pomVersion}'  && git push origin --tags;
                         """
                     }

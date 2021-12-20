@@ -13,7 +13,7 @@ properties([
                 $class: 'GroovyScript', 
                 fallbackScript: [script: 'return ["ERROR"]'], 
                 script: [script: '''
-                    def gitReleases =  ("git ls-remote --tags https://stm-developper:5tm-2ev-309@gitlab.adaje.oi.fr/ti-stm/microservices/bee/pml/pml-orchestrator.git").execute();
+                    def gitReleases =  ("git ls-remote --tags https://gitlab.adaje.oi.fr/ti-stm/microservices/bee/pml/pml-orchestrator.git").execute();
                     return ["-- Choose version --"].plus(gitReleases.text.readLines().collect { it.split('refs/tags/')[1].replace('^{}', '')});
                 ''']
             ]
